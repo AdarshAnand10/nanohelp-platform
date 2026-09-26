@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { fundingService } from "@/lib/services/funding.service";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> } // In Next 15+ params is a Promise
