@@ -19,6 +19,7 @@ export const authOptions = {
       },
       async authorize(credentials) {
         const parsed = LoginSchema.safeParse(credentials);
+        console.log("Parsed:", parsed.success);
         if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
@@ -35,10 +36,16 @@ export const authOptions = {
             passwordHash: true,
           },
         });
+        
+        console.log("User found:", !!user);
+        if (!user) return null;
+        console.log("User hash exists:", !!user.passwordHash);
+        console.log("User is active:", user.isActive);
 
         if (!user || !user.passwordHash || !user.isActive) return null;
 
         const isValid = await bcrypt.compare(password, user.passwordHash);
+        console.log("Is valid:", isValid);
         if (!isValid) return null;
 
         // Update last login
