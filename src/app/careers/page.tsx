@@ -3,8 +3,9 @@ import { Search, MapPin, Briefcase, Building, ChevronRight, Clock } from "lucide
 import MainLayout from "@/components/layout/MainLayout";
 import { prisma } from "@/lib/db/prisma";
 
-export default async function CareersPage({ searchParams }: { searchParams: { type?: string } }) {
-  const typeFilter = searchParams.type;
+export default async function CareersPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  const resolvedParams = await searchParams;
+  const typeFilter = resolvedParams.type;
   
   const jobs = await prisma.jobOpportunity.findMany({
     where: { 
@@ -147,7 +148,7 @@ export default async function CareersPage({ searchParams }: { searchParams: { ty
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border-subtle)", paddingTop: "16px" }}>
                     <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                      Deadline: <strong style={{ color: "var(--text-primary)", fontWeight: 500 }}>{job.deadline ? new Date(job.deadline).toLocaleDateString() : "Rolling"}</strong>
+                      Deadline: <strong style={{ color: "var(--text-primary)", fontWeight: 500 }}>{job.deadline ? new Date(job.deadline).toISOString().split('T')[0] : "Rolling"}</strong>
                     </div>
                     <Link href={`/careers/${job.slug}`} className="nano-btn-primary" style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "13px", textDecoration: "none" }}>
                       View Details

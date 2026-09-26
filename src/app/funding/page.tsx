@@ -3,8 +3,9 @@ import { Search, MapPin, DollarSign, Globe2, ChevronRight, Clock, Star, Bell } f
 import MainLayout from "@/components/layout/MainLayout";
 import { prisma } from "@/lib/db/prisma";
 
-export default async function FundingPage({ searchParams }: { searchParams: { category?: string } }) {
-  const categoryFilter = searchParams.category;
+export default async function FundingPage({ searchParams }: { searchParams: Promise<{ category?: string }> }) {
+  const resolvedParams = await searchParams;
+  const categoryFilter = resolvedParams.category;
   
   const fundings = await prisma.fundingOpportunity.findMany({
     where: { 
@@ -153,7 +154,7 @@ export default async function FundingPage({ searchParams }: { searchParams: { ca
                 
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "13px", color: "var(--text-muted)", marginBottom: "16px" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><MapPin size={14} /> {fund.country?.name || "Global / EU"}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><Clock size={14} /> {fund.deadline ? new Date(fund.deadline).toLocaleDateString() : "Rolling Deadline"}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><Clock size={14} /> {fund.deadline ? new Date(fund.deadline).toISOString().split('T')[0] : "Rolling Deadline"}</span>
                 </div>
 
                 <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>

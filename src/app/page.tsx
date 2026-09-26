@@ -274,7 +274,7 @@ export default async function HomePage() {
                 </h3>
                 <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "13px", color: "var(--text-secondary)", flexWrap: "wrap" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}><User size={14}/> {item.authors[0]?.authorName || "Various Authors"}</span>
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}><Calendar size={14}/> {item.publishedAt ? new Date(item.publishedAt).getFullYear() : "2026"}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}><Calendar size={14}/> {item.publishedAt ? new Date(item.publishedAt).getUTCFullYear() : "2026"}</span>
                 </div>
               </div>
             </Link>

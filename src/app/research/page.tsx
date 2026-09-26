@@ -3,8 +3,9 @@ import { Search, MapPin, BookOpen, User, Calendar, Clock, Star, TrendingUp, Chev
 import MainLayout from "@/components/layout/MainLayout";
 import { prisma } from "@/lib/db/prisma";
 
-export default async function ResearchPage({ searchParams }: { searchParams: { q?: string } }) {
-  const query = searchParams.q || "";
+export default async function ResearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const resolvedParams = await searchParams;
+  const query = resolvedParams.q || "";
   
   const researchItems = await prisma.research.findMany({
     where: { 
