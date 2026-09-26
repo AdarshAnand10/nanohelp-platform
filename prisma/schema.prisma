@@ -1,0 +1,895 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  MODERATOR
+  EDITOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  UPCOMING
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+  CANCELLED
+}
+
+enum DocumentType {
+  RESEARCH_ARTICLE
+  REVIEW
+  PREPRINT
+  PATENT
+  DATASET
+  PROJECT
+  BOOK_CHAPTER
+  CONFERENCE_PAPER
+  THESIS
+}
+
+enum OpportunityType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  PHD
+  POSTDOC
+  ACADEMIC
+  INDUSTRY
+}
+
+enum CareerLevel {
+  STUDENT
+  EARLY_CAREER
+  MID_CAREER
+  SENIOR
+  PROFESSOR
+  DIRECTOR
+}
+
+enum FundingType {
+  RESEARCH_GRANT
+  FELLOWSHIP
+  PHD_FUNDING
+  STARTUP_GRANT
+  INNOVATION_GRANT
+  MOBILITY_GRANT
+  INDUSTRY_FUNDING
+  EU_FUNDING
+  NATIONAL_FUNDING
+}
+
+enum ApplicantType {
+  RESEARCHER
+  PHD_STUDENT
+  POSTDOC
+  UNIVERSITY
+  COMPANY_SME
+  STARTUP
+  INSTITUTION
+  INDIVIDUAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  PUBLISH
+  UNPUBLISH
+  ARCHIVE
+  RESTORE
+  EXPIRE
+  CANCEL
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  ROLE_CHANGE
+  DELETE_USER
+  SYSTEM_ACTION
+}
+
+enum EmploymentMode {
+  ONSITE
+  REMOTE
+  HYBRID
+}
+
+// ─── AUTH MODELS ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  name          String?
+  avatar        String?
+  role          Role      @default(USER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  sessions          Session[]
+  accounts          Account[]
+  researchBookmarks ResearchBookmark[]
+  jobBookmarks      JobBookmark[]
+  fundingBookmarks  FundingBookmark[]
+  savedSearches     SavedSearch[]
+  fundingAlerts     FundingAlert[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── INSTITUTION ──────────────────────────────────────────────────────────────
+
+model Institution {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  type        String? // university, research_institute, hospital, government, industry
+  country     String?
+  city        String?
+  website     String?
+  logoUrl     String?
+  description String? @db.Text
+  isVerified  Boolean @default(false)
+
+  researchers  Researcher[]
+  research     Research[]
+  laboratories Laboratory[]
+
+  @@index([country])
+  @@index([type])
+  @@map("institutions")
+}
+
+// ─── RESEARCHER ───────────────────────────────────────────────────────────────
+
+model Researcher {
+  id               String        @id @default(cuid())
+  slug             String        @unique
+  name             String
+  email            String?
+  title            String? // Prof., Dr., Assoc. Prof., etc.
+  bio              String?       @db.Text
+  avatarUrl        String?
+  country          String?
+  city             String?
+  researchAreas    String[] // free-text array of research focus areas
+  hIndex           Int?
+  totalCitations   Int?
+  publicationCount Int?
+  orcidId          String?
+  isSpotlighted    Boolean       @default(false)
+  status           ContentStatus @default(PUBLISHED)
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  researchAuthors ResearchAuthor[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId])
+  @@index([isSpotlighted])
+  @@index([country])
+  @@index([status])
+  @@map("researchers")
+}
+
+// ─── RESEARCH MODELS ──────────────────────────────────────────────────────────
+
+model ResearchCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  iconName    String?
+  color       String?
+  sortOrder   Int     @default(0)
+
+  research Research[]
+
+  @@map("research_categories")
+}
+
+model ResearchMaterial {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  research ResearchMaterialMapping[]
+
+  @@map("research_materials")
+}
+
+model ResearchMaterialMapping {
+  id         String @id @default(cuid())
+  researchId String
+  materialId String
+
+  research Research         @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  material ResearchMaterial @relation(fields: [materialId], references: [id])
+
+  @@unique([researchId, materialId])
+  @@map("research_material_mappings")
+}
+
+model ResearchApplication {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  research ResearchApplicationMapping[]
+
+  @@map("research_applications")
+}
+
+model ResearchApplicationMapping {
+  id            String @id @default(cuid())
+  researchId    String
+  applicationId String
+
+  research    Research            @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  application ResearchApplication @relation(fields: [applicationId], references: [id])
+
+  @@unique([researchId, applicationId])
+  @@map("research_application_mappings")
+}
+
+model Journal {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  publisher    String?
+  issn         String?
+  impactFactor Float?
+  url          String?
+
+  research Research[]
+
+  @@map("journals")
+}
+
+model Research {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
+  abstract        String?       @db.Text
+  keywords        String?       @db.Text
+  documentType    DocumentType  @default(RESEARCH_ARTICLE)
+  status          ContentStatus @default(DRAFT)
+  publishedAt     DateTime?
+  publicationYear Int?
+  doi             String?       @unique
+  url             String?
+  thumbnailUrl    String?
+  views           Int           @default(0)
+  citations       Int           @default(0)
+  bookmarkCount   Int           @default(0)
+
+  // Foreign keys
+  categoryId    String?
+  category      ResearchCategory? @relation(fields: [categoryId], references: [id])
+  institutionId String?
+  institution   Institution?      @relation(fields: [institutionId], references: [id])
+  journalId     String?
+  journal       Journal?          @relation(fields: [journalId], references: [id])
+
+  // Relations
+  authors      ResearchAuthor[]
+  tags         ResearchTag[]
+  materials    ResearchMaterialMapping[]
+  applications ResearchApplicationMapping[]
+  bookmarks    ResearchBookmark[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  @@index([status])
+  @@index([documentType])
+  @@index([publicationYear])
+  @@index([categoryId])
+  @@index([institutionId])
+  @@index([views])
+  @@map("research")
+}
+
+model ResearchAuthor {
+  id              String  @id @default(cuid())
+  researchId      String
+  researcherId    String?
+  authorName      String
+  authorEmail     String?
+  affiliation     String?
+  isCorresponding Boolean @default(false)
+  authorOrder     Int     @default(0)
+
+  research   Research    @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  researcher Researcher? @relation(fields: [researcherId], references: [id])
+
+  @@index([researchId])
+  @@index([researcherId])
+  @@map("research_authors")
+}
+
+model Tag {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  researchTags   ResearchTag[]
+  jobTags        JobTag[]
+  fundingTags    FundingTag[]
+  conferenceTags ConferenceTag[]
+
+  @@map("tags")
+}
+
+model ResearchTag {
+  id         String @id @default(cuid())
+  researchId String
+  tagId      String
+
+  research Research @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id])
+
+  @@unique([researchId, tagId])
+  @@map("research_tags")
+}
+
+// ─── CAREER / JOB MODELS ─────────────────────────────────────────────────────
+
+model Company {
+  id            String        @id @default(cuid())
+  name          String        @unique
+  slug          String        @unique
+  description   String?       @db.Text
+  country       String?
+  city          String?
+  website       String?
+  logoUrl       String?
+  type          String? // startup, sme, large_corp, university, research_institute
+  foundedYear   Int?
+  employeeCount String? // "1-10", "11-50", "51-200", "201-500", "500+"
+  isFeatured    Boolean       @default(false)
+  isVerified    Boolean       @default(false)
+  status        ContentStatus @default(PUBLISHED)
+
+  jobs      JobOpportunity[]
+  countries CompanyCountry[]
+
+  @@index([country])
+  @@index([isFeatured])
+  @@index([type])
+  @@map("companies")
+}
+
+model CareerCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  iconName    String?
+  sortOrder   Int     @default(0)
+
+  jobs JobOpportunity[]
+
+  @@map("career_categories")
+}
+
+model ResearchField {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  slug        String          @unique
+  description String?
+  parentId    String?
+  parent      ResearchField?  @relation("FieldHierarchy", fields: [parentId], references: [id])
+  children    ResearchField[] @relation("FieldHierarchy")
+
+  jobFields     JobResearchField[]
+  fundingFields FundingResearchField[]
+
+  @@map("research_fields")
+}
+
+model JobOpportunity {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  title           String
+  description     String?         @db.Text
+  requirements    String?         @db.Text
+  opportunityType OpportunityType @default(FULL_TIME)
+  employmentMode  EmploymentMode  @default(ONSITE)
+  careerLevel     CareerLevel?
+  status          ContentStatus   @default(DRAFT)
+
+  location         String?
+  country          String?
+  city             String?
+  salaryMin        Float?
+  salaryMax        Float?
+  salaryCurrency   String?   @default("EUR")
+  applicationUrl   String?
+  applicationEmail String?
+  deadline         DateTime?
+  postedAt         DateTime?
+  publishedAt      DateTime?
+
+  views         Int     @default(0)
+  bookmarkCount Int     @default(0)
+  isFeatured    Boolean @default(false)
+
+  companyId  String?
+  company    Company?        @relation(fields: [companyId], references: [id])
+  categoryId String?
+  category   CareerCategory? @relation(fields: [categoryId], references: [id])
+
+  tags           JobTag[]
+  researchFields JobResearchField[]
+  bookmarks      JobBookmark[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  @@index([status])
+  @@index([opportunityType])
+  @@index([country])
+  @@index([careerLevel])
+  @@index([deadline])
+  @@index([companyId])
+  @@index([isFeatured])
+  @@map("job_opportunities")
+}
+
+model JobTag {
+  id    String @id @default(cuid())
+  jobId String
+  tagId String
+
+  job JobOpportunity @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  tag Tag            @relation(fields: [tagId], references: [id])
+
+  @@unique([jobId, tagId])
+  @@map("job_tags")
+}
+
+model JobResearchField {
+  id              String @id @default(cuid())
+  jobId           String
+  researchFieldId String
+
+  job           JobOpportunity @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  researchField ResearchField  @relation(fields: [researchFieldId], references: [id])
+
+  @@unique([jobId, researchFieldId])
+  @@map("job_research_fields")
+}
+
+// ─── FUNDING MODELS ──────────────────────────────────────────────────────────
+
+model Country {
+  id      String  @id @default(cuid())
+  name    String  @unique
+  code    String  @unique // ISO 3166-1 alpha-2
+  region  String? // EU, Eastern Europe, North America, etc.
+  flagUrl String?
+
+  fundingOrgs FundingOrganization[]
+  fundingOpps FundingOpportunity[]
+  companies   CompanyCountry[]
+
+  @@map("countries")
+}
+
+model CompanyCountry {
+  id        String @id @default(cuid())
+  companyId String
+  countryId String
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  country Country @relation(fields: [countryId], references: [id])
+
+  @@unique([companyId, countryId])
+  @@map("company_countries")
+}
+
+model FundingOrganization {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  acronym     String?
+  region      String? // EU, National, International
+  website     String?
+  logoUrl     String?
+  description String?
+
+  countryId String?
+  country   Country? @relation(fields: [countryId], references: [id])
+
+  funding FundingOpportunity[]
+
+  @@index([countryId])
+  @@map("funding_organizations")
+}
+
+model FundingCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  iconName    String?
+  sortOrder   Int     @default(0)
+
+  funding FundingOpportunity[]
+
+  @@map("funding_categories")
+}
+
+model FundingOpportunity {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  description String?       @db.Text
+  eligibility String?       @db.Text
+  status      ContentStatus @default(DRAFT)
+  fundingType FundingType   @default(RESEARCH_GRANT)
+
+  amountMin      Float?
+  amountMax      Float?
+  amountCurrency String?   @default("EUR")
+  region         String? // EU, Eastern Europe, Global, etc.
+  applicationUrl String?
+  deadline       DateTime?
+  openDate       DateTime?
+  publishedAt    DateTime?
+
+  views         Int     @default(0)
+  bookmarkCount Int     @default(0)
+  isFeatured    Boolean @default(false)
+
+  organizationId String?
+  organization   FundingOrganization? @relation(fields: [organizationId], references: [id])
+  categoryId     String?
+  category       FundingCategory?     @relation(fields: [categoryId], references: [id])
+  countryId      String?
+  country        Country?             @relation(fields: [countryId], references: [id])
+
+  applicantTypes FundingApplicantType[]
+  researchFields FundingResearchField[]
+  tags           FundingTag[]
+  alertMatches   FundingAlertMatch[]
+  bookmarks      FundingBookmark[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  @@index([status])
+  @@index([fundingType])
+  @@index([countryId])
+  @@index([deadline])
+  @@index([organizationId])
+  @@index([isFeatured])
+  @@map("funding_opportunities")
+}
+
+model FundingApplicantType {
+  id            String        @id @default(cuid())
+  fundingId     String
+  applicantType ApplicantType
+
+  funding FundingOpportunity @relation(fields: [fundingId], references: [id], onDelete: Cascade)
+
+  @@unique([fundingId, applicantType])
+  @@map("funding_applicant_types")
+}
+
+model FundingResearchField {
+  id              String @id @default(cuid())
+  fundingId       String
+  researchFieldId String
+
+  funding       FundingOpportunity @relation(fields: [fundingId], references: [id], onDelete: Cascade)
+  researchField ResearchField      @relation(fields: [researchFieldId], references: [id])
+
+  @@unique([fundingId, researchFieldId])
+  @@map("funding_research_fields")
+}
+
+model FundingTag {
+  id        String @id @default(cuid())
+  fundingId String
+  tagId     String
+
+  funding FundingOpportunity @relation(fields: [fundingId], references: [id], onDelete: Cascade)
+  tag     Tag                @relation(fields: [tagId], references: [id])
+
+  @@unique([fundingId, tagId])
+  @@map("funding_tags")
+}
+
+// ─── LABORATORY / TECHNOLOGY / CONFERENCE ────────────────────────────────────
+
+model Laboratory {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  description   String?       @db.Text
+  country       String?
+  city          String?
+  website       String?
+  logoUrl       String?
+  researchAreas String[]
+  equipment     String[]
+  capabilities  String?       @db.Text
+  status        ContentStatus @default(PUBLISHED)
+  isFeatured    Boolean       @default(false)
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  @@index([country])
+  @@index([institutionId])
+  @@index([status])
+  @@map("laboratories")
+}
+
+model Technology {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  description   String?       @db.Text
+  category      String?
+  maturityLevel String? // TRL 1-9
+  applications  String[]
+  relatedFields String[]
+  status        ContentStatus @default(PUBLISHED)
+  isFeatured    Boolean       @default(false)
+
+  @@index([category])
+  @@index([status])
+  @@map("technologies")
+}
+
+model Conference {
+  id                 String        @id @default(cuid())
+  name               String
+  slug               String        @unique
+  description        String?       @db.Text
+  acronym            String?
+  country            String?
+  city               String?
+  venue              String?
+  website            String?
+  startDate          DateTime?
+  endDate            DateTime?
+  submissionDeadline DateTime?
+  registrationUrl    String?
+  status             ContentStatus @default(PUBLISHED)
+  isUpcoming         Boolean       @default(true)
+  isFeatured         Boolean       @default(false)
+
+  tags ConferenceTag[]
+
+  @@index([startDate])
+  @@index([status])
+  @@index([country])
+  @@index([isUpcoming])
+  @@map("conferences")
+}
+
+model ConferenceTag {
+  id           String @id @default(cuid())
+  conferenceId String
+  tagId        String
+
+  conference Conference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  tag        Tag        @relation(fields: [tagId], references: [id])
+
+  @@unique([conferenceId, tagId])
+  @@map("conference_tags")
+}
+
+// ─── BOOKMARK MODELS (Explicit per entity — no polymorphic FK issues) ─────────
+
+model ResearchBookmark {
+  userId     String
+  researchId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  research Research @relation(fields: [researchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, researchId])
+  @@index([researchId])
+  @@map("research_bookmarks")
+}
+
+model JobBookmark {
+  userId    String
+  jobId     String
+  createdAt DateTime @default(now())
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  JobOpportunity @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([userId, jobId])
+  @@index([jobId])
+  @@map("job_bookmarks")
+}
+
+model FundingBookmark {
+  userId    String
+  fundingId String
+  createdAt DateTime @default(now())
+
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  funding FundingOpportunity @relation(fields: [fundingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, fundingId])
+  @@index([fundingId])
+  @@map("funding_bookmarks")
+}
+
+// ─── USER FEATURES ────────────────────────────────────────────────────────────
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  query     String
+  filters   Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("saved_searches")
+}
+
+model FundingAlert {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  researchFields String[]
+  countries      String[]
+  fundingTypes   String[]
+  amountMin      Float?
+  amountMax      Float?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matches FundingAlertMatch[]
+
+  @@index([userId])
+  @@map("funding_alerts")
+}
+
+model FundingAlertMatch {
+  id        String    @id @default(cuid())
+  alertId   String
+  fundingId String
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  alert   FundingAlert       @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  funding FundingOpportunity @relation(fields: [fundingId], references: [id])
+
+  @@unique([alertId, fundingId])
+  @@index([alertId])
+  @@index([fundingId])
+  @@map("funding_alert_matches")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  url       String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model NewsletterSubscriber {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  isActive     Boolean  @default(true)
+  subscribedAt DateTime @default(now())
+
+  @@map("newsletter_subscribers")
+}
+
+// ─── AUDIT LOG ────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  action     AuditAction
+  entityType String // "Research" | "JobOpportunity" | "FundingOpportunity" | etc.
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
